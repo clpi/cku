@@ -43,7 +43,8 @@ FILE         =  { SOI ~ (DOCS | COMMENT | exprs)* ~ EOI }
         pdec =  { "--"}
         pneg =  { "-" }
         ppos =  { "+" }
-      plogic = _{ pnot }
+      plogic = _{ pnev | pnot }
+        pnev = _{ "~~" }
         pnot =  { "~" | kw_not }
       pmod   = _{ pptr | pat | pref | pmay | pmust | pvar }
         pptr =  { "*" | kw_ptr}
@@ -57,20 +58,24 @@ FILE         =  { SOI ~ (DOCS | COMMENT | exprs)* ~ EOI }
       iinc    =  { "++ "}
       idec    =  { "-- "}
 
-exprs = { asgnexpr | valexpr | incexpr }
+exprs         =  { asgnexpr | valexpr | incexpr }
   valexpr     =  { prefix* ~ primary ~ postfix* ~ (infix ~ prefix* ~ primary ~ postfix* )* }
-  incexpr    = { forexpr | loopexpr }
-    loopexpr  = { kw_loop ~ brcexpr }
-    forexpr   = { kw_for ~ ident ~ kw_in ~ ident ~ brcexpr}
-  asgnexpr    = { casgnexpr | vasgnexpr | rasgnexpr }
-    casgnexpr =  { kw_let ~ kw_vis? ~ ident ~ "=" ~ primary }
-    vasgnexpr =  { kw_var ~ kw_vis? ~ ident ~ "=" ~ primary }
-    rasgnexpr =  { ident ~ "=" ~ primary }
+  incexpr     =  { forexpr | loopexpr }
+    loopexpr  =  { kw_loop ~ brcexpr }
+    forexpr   =  { kw_for ~ ident ~ kw_in ~ ident ~ brcexpr}
+  asgnexpr    =  { lasgnexpr | casgnexpr | vasgnexpr | rasgnexpr | tasgnexpr | aasgnexpr }
+    lasgnexpr =  { kw_let ~ kw_vis? ~ ident ~ "=" ~ valexpr }
+    casgnexpr =  { kw_const ~ kw_vis? ~ ident ~ "=" ~ valexpr }
+    vasgnexpr =  { kw_var ~ kw_vis? ~ ident ~ "=" ~ valexpr }
+    tasgnexpr =  { kw_type ~ kw_vis? ~ ident ~ "=" ~ valexpr }
+    rasgnexpr =  { kw_vis? ~ ident ~ "=" ~ valexpr }
+    aasgnexpr =  { kw_alias ~ kw_vis? ~ ident ~ "=" ~ valexpr }
 
-primary     = _{ value | (parexpr| brcexpr) }
-  parexpr   =  _{"(" ~ valexpr* ~ ")" }
-  brkexpr   =  _{"[" ~ valexpr* ~ "]" }
-  brcexpr   =  _{"{" ~ valexpr* ~ "}" }
+primary       =  _{ value | (parexpr| brcexpr) }
+  dbrkexpr    =  _{"[[" ~ valexpr* ~ "]]" }
+  parexpr     =  _{"(" ~ valexpr* ~ ")" }
+  brkexpr     =  _{"[" ~ valexpr* ~ "]" }
+  brcexpr     =  _{"{" ~ valexpr* ~ "}" }
 
 value     = _{ builtin | lit | ident }
   ident = @{ ((!reserved ~ ASCII_ALPHA) | (reserved ~ (ASCII_ALPHANUMERIC | "_"))) ~ (ASCII_ALPHANUMERIC | "_")* }
@@ -85,10 +90,15 @@ value     = _{ builtin | lit | ident }
         oct   =  _{ "0o" ~ (('0'..'7') ~ ('0'..'7' | "_" )*) }
         intbin =_{ "0b" ~ (('0'..'1') ~ ('0'..'1' | "_")*) }
       dig   = _{ (ASCII_DIGIT | ("_" ~ ASCII_DIGIT))+ }
-    strty   = _{ str | char | fstr }
+    strty   = _{ bstr | dstr | lstr | fstr | rstr | str | char | btstr }
       str   = @{ "\"" ~ (!("\"") ~ ANY)* ~ "\""}
+      dstr  = @{ "\"\"" ~ (!("\"\"") ~ ANY)* ~ "\"\""}
+      bstr  = @{ "b\"" ~ (!("\"") ~ ANY)* ~ "\""}
+      lstr  = @{ "@\"" ~ (!("\"") ~ ANY)* ~ "\""}
+      rstr  = @{ "r\"" ~ (!("\"") ~ ANY)* ~ "\""}
+      fstr  = @{ "f\"" ~ (!("\"") ~ ANY)* ~ "\""}
       char  = @{ "\'" ~ (!("\'") ~ ANY)* ~ "\'"}
-      fstr  = @{ "`" ~ (!("`") ~ ANY)* ~ "`"}
+      btstr = @{ "`" ~ (!("`") ~ ANY)* ~ "`" }
     chars   = _{ unicode | escape }
       unicode = @{ "u" ~ ASCII_HEX_DIGIT{4} | "U" ~ ASCII_HEX_DIGIT{8} }
       escape  = @{ "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "\\" | unicode | NEWLINE)? }
@@ -112,7 +122,7 @@ types = _{ ty_bool| ty_enum |ty_maybe | ty_fn | ty_proc | ty_ability | ty_list |
     ty_opt = { "opt" | "option" }
     ty_data = { "data" }
     ty_enum = { "enum" }
-    ty_float = { "f16" | "f32" | "f64" | "f128"}
+    ty_float = { "f8" | "f16" | "f32" | "f64" | "f128"}
     ty_str = { "str" }
     ty_list = { "list" }
     ty_map  = { "map" }
@@ -130,11 +140,18 @@ types = _{ ty_bool| ty_enum |ty_maybe | ty_fn | ty_proc | ty_ability | ty_list |
 
 
 keywords = { kw_sym | kw_and | kw_by | kw_ptr | kw_or | kw_not | kw_xor | kw_is | kw_as | kw_at | kw_in | kw_this | kw_let | kw_var | kw_vis | kw_from | kw_if | kw_else | kw_all | kw_try | kw_not_in | kw_one_of | kw_one | kw_to | kw_type | kw_def | kw_on | kw_may | kw_can | kw_of | kw_ref }
-  kw_sym = {kw_arrsml| kw_arrsmr| kw_arrlgl| kw_arrlgr}
+  kw_sym = {kw_arrsml| kw_arrsmr| kw_arrsmb | kw_arrlgb | kw_dbasml | kw_dbasmr 
+  | kw_dbalgr | kw_dbalgl }
     kw_arrsmr = { "->"}
     kw_arrlgr = { "=>"}
     kw_arrsml = { "<-"}
-    kw_arrlgl = { "<="}
+    kw_arrsmb = { "<->"}
+    kw_arrlgb = { "<=>"}
+    kw_dbasml = { "<<-"}
+    kw_dbasmr = { "->>"}
+    kw_dbalgr = { "=>>"}
+    kw_dbalgl = { "<=="}
+
   kw_not_in = { "not" ~ "in" }
   kw_one_of = { "one" ~ "of"}
   kw_and = { "and" }
@@ -164,6 +181,7 @@ keywords = { kw_sym | kw_and | kw_by | kw_ptr | kw_or | kw_not | kw_xor | kw_is 
   kw_try = { "try" }
   kw_catch = { "catch" }
   kw_for = { "for" }
+  kw_alias = { "alias"}
   kw_or = { "or" }
   kw_not = { "not" }
   kw_xor = { "xor" }
@@ -171,11 +189,15 @@ keywords = { kw_sym | kw_and | kw_by | kw_ptr | kw_or | kw_not | kw_xor | kw_is 
   kw_loop = { "loop" }
   kw_goto = { "goto" }
   kw_do = { "do" }
+  kw_const = { "const" }
   kw_exit = { "exit" }
   kw_skip = { "skip" }
   kw_either = { "either" }
   kw_with = { "with" }
   kw_using = { "using" }
+  kw_where = { "where" }
+  kw_when = { "when" }
+  kw_which = { "which" }
 
 /// LITERALS
 
